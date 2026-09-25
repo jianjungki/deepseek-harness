@@ -30,8 +30,11 @@
   en: 7220801ccc3b2e6b
   zh: 042dc97976aef979
 /deepseek-harness-desktop/package:
-  en: 4cd8a8da6977928d
-  zh: 9f624855a2edac37
+  en: 66199d49649bdac8
+  zh: 4128f7ce3fa0f4d8
+/deepseek-harness-desktop/package/unsigned-github-builds:
+  en: 18bc40af3a8aa27a
+  zh: 314d10c339e0c50b
 /deepseek-harness-desktop/package/release-versions:
   en: f461b255133384cc
   zh: 2b9db718f22fdd04

@@ -152,6 +152,14 @@ Desktop 在 Host 启动后、打开工作区前检查模型 API Key 引用是否
 
 ## 打包
 
+### GitHub 未签名构建
+
+[未签名发布工作流](../../.github/workflows/desktop-release.yml)使用原生 runner 构建 Windows x64 EXE 和 macOS x64/ARM64 DMG、ZIP 安装包。Node 版本由 [`.nvmrc`](../../.nvmrc)指定；使用 nvm-windows 时，在仓库根目录执行 `nvm use (Get-Content .nvmrc).Trim()` 选择该版本。构建前安装清单锁定的 pnpm 和工作区依赖。Windows 需要 Visual Studio C++ 构建工具。
+
+在仓库 Actions Variables 中配置 `DSH_DESKTOP_POLICY_TEST_ORIGIN` 和 `DSH_DESKTOP_AUTH_TEST_ORIGIN`，分别填写真实策略服务与登录服务的 HTTPS origin。未签名构建仍需要可用的策略服务；占位域名不是部署配置。推送指向已有源码、名称为 `desktop-unsigned-v<版本>` 且版本与 Desktop 清单一致的标签，或在手动工作流输入中选择该已有标签。三个目标的构建及打包运行时 smoke 检查全部成功后，工作流才发布包含五个安装包和 SHA-256 校验和的 GitHub 预发布版本。已有 Release 会导致发布失败，而不是覆盖资产。此工作流尚未在 GitHub 执行；发布操作人员必须验证三个目标的安装与启动。
+
+本地打包时，按下文配置目标 dotenv 文件，并向该平台的打包命令传入 `--unsigned`。Windows 使用 `pnpm --dir apps/desktop run package:win:x64 --unsigned`；macOS 使用 `package:mac:x64` 或 `package:mac:arm64`。运行前按“发布版本”一节确认版本。产物位于目标目录的 `unsigned-artifacts` 下，文件名带有 `-unsigned` 后缀。未签名模式不执行发布者签名和 Apple 公证，不生成自动更新 feed 或 COS 发布记录；仍要求运行时完整性与 smoke 检查。Gatekeeper、SmartScreen 或企业策略可能阻止这些安装包。Windows 构建主机无法验证原生 macOS 打包与安装。
+
 <a id="release-versions"></a>
 
 ### 发布版本

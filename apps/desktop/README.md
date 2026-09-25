@@ -150,6 +150,14 @@ The welcome window follows system appearance with the design’s Platform light/
 
 ## Package
 
+### Unsigned GitHub builds
+
+The [unsigned release workflow](../../.github/workflows/desktop-release.yml) builds Windows x64 EXE and macOS x64/ARM64 DMG and ZIP installers on native runners. It uses the Node version in [`.nvmrc`](../../.nvmrc); with nvm-windows, select it from the repository root using `nvm use (Get-Content .nvmrc).Trim()`. Install the manifest-pinned pnpm and workspace dependencies before building. Windows requires Visual Studio C++ build tools.
+
+Configure repository Actions variables `DSH_DESKTOP_POLICY_TEST_ORIGIN` and `DSH_DESKTOP_AUTH_TEST_ORIGIN` with the real HTTPS policy-service and login origins. Unsigned builds still require a working policy service; a placeholder domain is not a deployment. Push an existing-source tag named `desktop-unsigned-v<version>` matching the Desktop manifest, or select that existing tag in the manual workflow input. All three builds and packaged runtime smoke checks must succeed before the workflow publishes a GitHub prerelease with five installers and SHA-256 checksums. Publication refuses an existing Release rather than replacing its assets. This workflow has not yet been executed on GitHub; the release operator must verify installation and launch on all three targets.
+
+For local packaging, configure the target dotenv file as described below and pass `--unsigned` to its package command. Windows uses `pnpm --dir apps/desktop run package:win:x64 --unsigned`; macOS uses `package:mac:x64` or `package:mac:arm64`. Confirm the version under **Release versions** before running. Outputs use `unsigned-artifacts` under the target directory and carry an `-unsigned` suffix. Unsigned mode omits publisher signing, Apple notarization, automatic-update feeds and COS release records; runtime integrity and smoke checks remain required. Gatekeeper, SmartScreen or enterprise policy may block these installers. Native macOS packaging and installation remain unverified from a Windows build host.
+
 <a id="release-versions"></a>
 
 ### Release versions

@@ -1,0 +1,162 @@
+name: Desktop unsigned releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing desktop-unsigned-v<version> tag to build and publish
+        required: true
+        type: string
+  push:
+    tags: ['desktop-unsigned-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-unsigned-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      commit: ${{ steps.plan.outputs.commit }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Validate immutable release selection
+        id: plan
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const tag = process.env.RELEASE_TAG;
+          if (!/^desktop-unsigned-v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) throw new Error('Expected desktop-unsigned-v<version>');
+          const version = tag.slice('desktop-unsigned-v'.length);
+          const product = JSON.parse(readFileSync('apps/desktop/package.json', 'utf8')).version;
+          if (version !== product) throw new Error('Tag version must match apps/desktop/package.json');
+          const commit = execFileSync('git', ['rev-parse', `refs/tags/${tag}^{commit}`], { encoding: 'utf8' }).trim();
+          const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+          if (head !== commit) throw new Error('Checkout does not match release tag');
+          appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\nversion=${version}\ncommit=${commit}\n`);
+          JS
+
+  build:
+    needs: plan
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win-x64
+            runner: windows-2025
+            platform: win32
+            arch: x64
+          - target: mac-x64
+            runner: macos-15-intel
+            platform: darwin
+            arch: x64
+          - target: mac-arm64
+            runner: macos-15
+            platform: darwin
+            arch: arm64
+    env:
+      TARGET: ${{ matrix.target }}
+      TARGET_PLATFORM: ${{ matrix.platform }}
+      TARGET_ARCH: ${{ matrix.arch }}
+      BUILD_VERSION: ${{ needs.plan.outputs.version }}
+      POLICY_ORIGIN: ${{ vars.DSH_DESKTOP_POLICY_TEST_ORIGIN }}
+      AUTH_ORIGIN: ${{ vars.DSH_DESKTOP_AUTH_TEST_ORIGIN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Configure unsigned build
+        run: |
+          @'
+          import { writeFileSync } from 'node:fs';
+          const { POLICY_ORIGIN, AUTH_ORIGIN, TARGET_PLATFORM, TARGET_ARCH } = process.env;
+          if (process.platform !== TARGET_PLATFORM || process.arch !== TARGET_ARCH) throw new Error('Runner architecture differs from target');
+          for (const value of [POLICY_ORIGIN, AUTH_ORIGIN]) {
+            const url = new URL(value);
+            if (url.protocol !== 'https:' || url.origin !== value) throw new Error('Configure HTTPS origins in DSH_DESKTOP_POLICY_TEST_ORIGIN and DSH_DESKTOP_AUTH_TEST_ORIGIN');
+          }
+          const config = JSON.stringify({ allowedAuthOrigins: [AUTH_ORIGIN] });
+          if ([POLICY_ORIGIN, config].some(value => /['\r\n]/.test(value))) throw new Error('Unsupported dotenv characters');
+          const file = TARGET_PLATFORM === 'win32' ? '.env.windows' : '.env.macos';
+          writeFileSync(`apps/desktop/${file}`, `DSH_DESKTOP_APP_ID=com.deepseek.harness\nDSH_DESKTOP_AUTO_UPDATE_ENV=test\nDSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN=${POLICY_ORIGIN}\nDSH_DESKTOP_MANDATORY_UPDATE_CONFIG='${config}'\n`);
+          '@ | node --input-type=module
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: pnpm/action-setup@v4
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check packaging configuration and toolchain
+        run: pnpm --dir apps/desktop run package -- $env:TARGET --unsigned --check --build-version $env:BUILD_VERSION
+      - name: Build and smoke-test installer
+        run: pnpm --dir apps/desktop run package -- $env:TARGET --unsigned --build-version $env:BUILD_VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: |
+            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*-unsigned.exe
+            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*-unsigned.dmg
+            apps/desktop/.desktop-build/targets/${{ matrix.target }}/unsigned-artifacts/*-unsigned.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: [plan, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      BUILD_VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: dist
+          merge-multiple: true
+      - name: Verify complete artifact set
+        run: |
+          set -euo pipefail
+          test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-unsigned.exe"
+          for arch in x64 arm64; do
+            for ext in dmg zip; do
+              test -s "dist/deepseek-harness-$BUILD_VERSION-mac-$arch-unsigned.$ext"
+            done
+          done
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+      - name: Publish unsigned prerelease
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" dist/* --verify-tag --title "DeepSeek Harness $BUILD_VERSION (unsigned)" --prerelease --notes 'Community unsigned build. No publisher certificate or Apple notarization. OS security warnings may prevent launch. Automatic update feeds are not published. See SHA256SUMS.txt for artifact checksums.'
