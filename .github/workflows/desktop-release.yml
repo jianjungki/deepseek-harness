@@ -10,7 +10,7 @@ on:
       policy_mode:
         description: Mandatory update policy mode for this build
         required: false
-        default: enabled
+        default: disabled
         type: choice
         options:
           - enabled
