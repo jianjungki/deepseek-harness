@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
+import { validateDesktopUnsignedReleaseTag } from './desktop-unsigned-release-selection.mjs'
 
 function evaluateRunsOn(selector: unknown, context: Record<string, unknown>): unknown {
   if (typeof selector !== 'string') throw new TypeError('Runner selector must be a string')
@@ -14,6 +15,33 @@ const runnerPrivatePnpmDestination = /^\$\{\{ runner\.temp \}\}\/setup-pnpm-\$\{
 const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}'
 
 describe('CI workflow', () => {
+  it.each([
+    ['0.1.7-rc.2', '0.1.7-rc.2'],
+    ['0.1.7-rc.2.20260928.1', '0.1.7-rc.2'],
+    ['0.1.7-test.20260928.2', '0.1.7'],
+  ])('accepts Desktop release tag version %s for product %s', (version, product) => {
+    expect(validateDesktopUnsignedReleaseTag(`desktop-unsigned-v${version}`, product)).toBe(version)
+  })
+
+  it.each([
+    ['desktop-v0.1.7-rc.2', '0.1.7-rc.2'],
+    ['desktop-unsigned-v0.1.7-rc.3', '0.1.7-rc.2'],
+    ['desktop-unsigned-v0.1.7-rc.2.20260928.0', '0.1.7-rc.2'],
+    ['desktop-unsigned-v0.1.7-rc.2-test.20260928.1', '0.1.7-rc.2'],
+    ['desktop-unsigned-v0.1.7.20260928.1', '0.1.7'],
+  ])('rejects Desktop release tag %s for product %s', (tag, product) => {
+    expect(() => validateDesktopUnsignedReleaseTag(tag, product)).toThrow()
+  })
+
+  it('requires both Windows unsigned distribution formats before publishing a Desktop release', () => {
+    const release: unknown = workflowJob(loadWorkflow('.github/workflows/desktop-release.yml'), 'release')
+    if (!isRecord(release) || !Array.isArray(release.steps)) throw new TypeError('Desktop release job must define steps')
+    const verify: unknown = release.steps.find(step => isRecord(step) && step.name === 'Verify complete artifact set')
+    if (!isRecord(verify) || typeof verify.run !== 'string') throw new TypeError('Desktop release must verify its artifacts')
+    expect(verify.run).toContain('deepseek-harness-$BUILD_VERSION-win-x64-unsigned.exe')
+    expect(verify.run).toContain('deepseek-harness-$BUILD_VERSION-win-x64-portable-unsigned.exe')
+  })
+
   it('prepares confinement before Node compatibility smokes', () => {
     const job = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'node-compat')
     if (!Array.isArray(job.steps)) throw new TypeError('Node compatibility job must define steps')

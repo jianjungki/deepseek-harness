@@ -162,7 +162,7 @@ Desktop 在 Host 启动后、打开工作区前检查模型 API Key 引用是否
 
 [未签名发布工作流](../../.github/workflows/desktop-release.yml)使用原生 runner 构建 Windows x64 EXE 和 macOS x64/ARM64 DMG、ZIP 安装包。Node 版本由 [`.nvmrc`](../../.nvmrc)指定；使用 nvm-windows 时，在仓库根目录执行 `nvm use (Get-Content .nvmrc).Trim()` 选择该版本。构建前安装清单锁定的 pnpm 和工作区依赖。Windows 需要 Visual Studio C++ 构建工具。
 
-在仓库 Actions Variables 中配置 `DSH_DESKTOP_POLICY_TEST_ORIGIN` 和 `DSH_DESKTOP_AUTH_TEST_ORIGIN`，分别填写真实策略服务与登录服务的 HTTPS origin。手动工作流输入 `policy_mode=disabled` 可以先生成不执行强更检查和登录的临时安装包；标签推送和手动工作流默认值仍启用策略并要求这两个变量。禁用策略的安装包无法执行强制更新，重新启用策略构建后才恢复。推送指向已有源码、名称为 `desktop-unsigned-v<版本>` 且版本与 Desktop 清单一致的标签，或在手动工作流输入中选择该已有标签。三个目标的构建及打包运行时 smoke 检查全部成功后，工作流才发布包含五个安装包和 SHA-256 校验和的 GitHub 预发布版本。已有 Release 会导致发布失败，而不是覆盖资产。此工作流尚未在 GitHub 执行；发布操作人员必须验证三个目标的安装与启动。
+在仓库 Actions Variables 中配置 `DSH_DESKTOP_POLICY_TEST_ORIGIN` 和 `DSH_DESKTOP_AUTH_TEST_ORIGIN`，分别填写真实策略服务与登录服务的 HTTPS origin。手动工作流输入 `policy_mode=disabled` 可以先生成不执行强更检查和登录的临时安装包；标签推送仍启用策略并要求这两个变量。禁用策略的安装包无法执行强制更新，重新启用策略构建后才恢复。推送指向已有源码、名称为 `desktop-unsigned-v<构建版本>` 的标签，或在手动工作流输入中选择该已有标签。构建版本可以等于 Desktop 产品版本，也可以采用“发布版本”一节的日期 test 格式；产品版本已经存在已发布标签或 Release 时，应使用新的 test 版本。三个目标的构建及打包运行时 smoke 检查全部成功后，工作流才发布包含六个产物和 SHA-256 校验和的 GitHub 预发布版本：Windows 安装器、Windows 免安装可执行文件，以及两个架构各自的 macOS DMG 和 ZIP。已有 Release 会导致发布失败，而不是覆盖资产。发布操作人员必须验证三个目标的安装与启动。
 
 本地打包时，按下文配置目标 dotenv 文件，并向该平台的打包命令传入 `--unsigned`。Windows 使用 `pnpm --dir apps/desktop run package:win:x64 --unsigned`；macOS 使用 `package:mac:x64` 或 `package:mac:arm64`。运行前按“发布版本”一节确认版本。产物位于目标目录的 `unsigned-artifacts` 下，文件名带有 `-unsigned` 后缀。未签名模式不执行发布者签名和 Apple 公证，不生成自动更新 feed 或 COS 发布记录；仍要求运行时完整性与 smoke 检查。Gatekeeper、SmartScreen 或企业策略可能阻止这些安装包。Windows 构建主机无法验证原生 macOS 打包与安装。
 
@@ -237,7 +237,7 @@ pwsh -NoProfile -File apps/desktop/scripts/smoke-windows.ps1 -Makensis $Makensis
 
 Windows 安装器在启动时和选定目标目录后检查应用是否正在运行，通过检查后才将新版本解压到安装目录旁边。通过同卷目录改名替换前，安装器会再次检查。运行中的应用会阻止安装；更新启动允许等待应用退出，最长十秒。同路径升级在替换成功前保留旧目录；解压失败时旧版不变，替换失败时尝试恢复旧目录。安装器在启动前清理旧版备份。强制结束安装器或断电可能留下 `.new-*` 或 `.old-*` 目录；不同安装位置或安装范围迁移仍使用 electron-builder 的旧卸载器流程。
 
-解压失败时，安装器会把 7-Zip 的结果和完整错误输出写入更新缓存目录 `%LOCALAPPDATA%\<按包名派生>-updater\installer-logs\extract-failure-<时间戳>.log`（当前为 `@deepseek-aidsh-desktop-updater`），并在弹窗中显示首条错误行和 **复制错误信息** 按钮；静默安装只写入报告。未签名的 Windows 构建（`DSH_DESKTOP_UNSIGNED=1`）会将安装包命名为 `deepseek-harness-<版本>-win-x64-unsigned.exe`，以免被误当作发布产物。
+解压失败时，安装器会把 7-Zip 的结果和完整错误输出写入更新缓存目录 `%LOCALAPPDATA%\<按包名派生>-updater\installer-logs\extract-failure-<时间戳>.log`（当前为 `@deepseek-aidsh-desktop-updater`），并在弹窗中显示首条错误行和 **复制错误信息** 按钮；静默安装只写入报告。Windows 打包还会生成 `deepseek-harness-<版本>-win-x64-portable.exe`，它通过解压到临时目录实现免安装运行。未签名的 Windows 构建（`DSH_DESKTOP_UNSIGNED=1`）会在两个文件名的 `.exe` 前追加 `-unsigned`，以免被误当作发布产物。
 
 <a id="upload-updates"></a>
 
@@ -305,7 +305,7 @@ Apple 工具使用 macOS 当前活动网络服务的 HTTP/HTTPS 代理。配置�
 pnpm run package:desktop:win:x64:unsigned
 ```
 
-该命令要求设置 `DSH_DESKTOP_APP_ID` 并具备常规构建依赖，包括编译原生模块所需的 Python 和 Visual C++ 构建工具。Python 不在 `PATH` 中时，将 `PYTHON` 设置为其可执行文件路径。命令将安装包写入 `.desktop-build/targets/win-x64/unsigned-artifacts/`，省略自动更新配置，清除签名凭据，且不生成发布完成记录。它不需要 EV 凭据或更新源地址。签名打包和上传命令仍遵循正式发布要求。
+该命令要求设置 `DSH_DESKTOP_APP_ID` 并具备常规构建依赖，包括编译原生模块所需的 Python 和 Visual C++ 构建工具。Python 不在 `PATH` 中时，将 `PYTHON` 设置为其可执行文件路径。命令将安装器和免安装可执行文件写入 `.desktop-build/targets/win-x64/unsigned-artifacts/`，省略自动更新配置，清除签名凭据，且不生成发布完成记录。它不需要 EV 凭据或更新源地址。签名打包和上传命令仍遵循正式发布要求。
 
 ### Windows 安装界面
 

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing desktop-unsigned-v<version> tag to build and publish
+        description: Existing desktop-unsigned-v<build-version> tag to build and publish
         required: true
         type: string
       policy_mode:
@@ -53,11 +53,10 @@ jobs:
           node --input-type=module <<'JS'
           import { appendFileSync, readFileSync } from 'node:fs';
           import { execFileSync } from 'node:child_process';
+          import { validateDesktopUnsignedReleaseTag } from './scripts/desktop-unsigned-release-selection.mjs';
           const tag = process.env.RELEASE_TAG;
-          if (!/^desktop-unsigned-v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) throw new Error('Expected desktop-unsigned-v<version>');
-          const version = tag.slice('desktop-unsigned-v'.length);
           const product = JSON.parse(readFileSync('apps/desktop/package.json', 'utf8')).version;
-          if (version !== product) throw new Error('Tag version must match apps/desktop/package.json');
+          const version = validateDesktopUnsignedReleaseTag(tag, product);
           const commit = execFileSync('git', ['rev-parse', `refs/tags/${tag}^{commit}`], { encoding: 'utf8' }).trim();
           const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
           if (head !== commit) throw new Error('Checkout does not match release tag');
@@ -168,6 +167,7 @@ jobs:
         run: |
           set -euo pipefail
           test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-unsigned.exe"
+          test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-portable-unsigned.exe"
           for arch in x64 arm64; do
             for ext in dmg zip; do
               test -s "dist/deepseek-harness-$BUILD_VERSION-mac-$arch-unsigned.$ext"

@@ -83,6 +83,11 @@ describe('installer preparation preserves application dependencies', () => {
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'win32', 'x64')
     expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(config.win.target).toEqual(['nsis', 'portable'])
+    expect(config.portable).toEqual({
+      artifactName: 'deepseek-harness-${version}-${os}-${arch}-portable-unsigned.${ext}',
+      requestExecutionLevel: 'user',
+    })
   })
 
   it('packages every preload entry point the shell loads', async () => {

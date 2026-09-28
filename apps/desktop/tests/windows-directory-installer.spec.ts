@@ -3,11 +3,26 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { expect, it } from 'vitest'
-import { directoryInstallerExits, directoryInstallSection, directoryUninstaller } from '../scripts/windows-directory-installer.mjs'
+import { directoryInstallerExits, directoryInstallSection, directoryUninstaller, installWindowsDirectoryInstaller } from '../scripts/windows-directory-installer.mjs'
 
 const require = createRequire(import.meta.url)
 const section = readFileSync(join(dirname(require.resolve('app-builder-lib/package.json')),
   'templates/nsis/installSection.nsh'), 'utf8')
+
+it('leaves the portable NSIS template with its own extraction and launch flow', async () => {
+  installWindowsDirectoryInstaller()
+  const builderModule: unknown = require('app-builder-lib/out/targets/nsis/NsisTarget.js')
+  const { NsisTarget } = builderModule as typeof import('app-builder-lib/out/targets/nsis/NsisTarget.js')
+  const source = readFileSync(join(dirname(require.resolve('app-builder-lib/package.json')),
+    'templates/nsis/portable.nsi'), 'utf8')
+  const compile = Reflect.get(NsisTarget.prototype, 'computeFinalScript') as
+    (this: object, script: string, installer: boolean, archs: Map<number, string>) => Promise<string>
+  const result = await compile.call(
+    { isPortable: true, packager: { info: { cancellationToken: {} } }, options: {} }, source, false, new Map())
+  expect(result).toBe(`\n${source}`)
+  expect(result).toContain('PORTABLE_EXECUTABLE_DIR')
+  expect(result).not.toContain('DSH_UPDATER_CACHE_NAME')
+})
 
 it('keeps data cleanup out of the upstream template while retaining application removal and registration cleanup', () => {
   const source = readFileSync(join(dirname(require.resolve('app-builder-lib/package.json')), 'templates/nsis/uninstaller.nsh'), 'utf8')
