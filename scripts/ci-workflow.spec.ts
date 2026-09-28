@@ -33,13 +33,13 @@ describe('CI workflow', () => {
     expect(() => validateDesktopUnsignedReleaseTag(tag, product)).toThrow()
   })
 
-  it('requires both Windows unsigned distribution formats before publishing a Desktop release', () => {
+  it('requires both Windows installer and ZIP formats before publishing a Desktop release', () => {
     const release: unknown = workflowJob(loadWorkflow('.github/workflows/desktop-release.yml'), 'release')
     if (!isRecord(release) || !Array.isArray(release.steps)) throw new TypeError('Desktop release job must define steps')
     const verify: unknown = release.steps.find(step => isRecord(step) && step.name === 'Verify complete artifact set')
     if (!isRecord(verify) || typeof verify.run !== 'string') throw new TypeError('Desktop release must verify its artifacts')
     expect(verify.run).toContain('deepseek-harness-$BUILD_VERSION-win-x64-unsigned.exe')
-    expect(verify.run).toContain('deepseek-harness-$BUILD_VERSION-win-x64-portable-unsigned.exe')
+    expect(verify.run).toContain('deepseek-harness-$BUILD_VERSION-win-x64-unsigned.zip')
   })
 
   it('prepares confinement before Node compatibility smokes', () => {

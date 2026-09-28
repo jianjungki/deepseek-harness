@@ -167,7 +167,7 @@ jobs:
         run: |
           set -euo pipefail
           test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-unsigned.exe"
-          test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-portable-unsigned.exe"
+          test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-unsigned.zip"
           for arch in x64 arm64; do
             for ext in dmg zip; do
               test -s "dist/deepseek-harness-$BUILD_VERSION-mac-$arch-unsigned.$ext"

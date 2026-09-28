@@ -225,7 +225,7 @@ export function createElectronBuilderConfig(
         publisherName: windowsSigner === undefined ? undefined : resolveWindowsUpdatePublisher(env.DSH_DESKTOP_WINDOWS_CER_FILE),
         signingHashAlgorithms: ['sha256'],
       },
-      target: ['nsis', 'portable'],
+      target: ['nsis', 'zip'],
     },
     linux: {
       category: 'Development',
@@ -241,10 +241,6 @@ export function createElectronBuilderConfig(
       allowToChangeInstallationDirectory: false,
       installerLanguages: ['en_US', 'zh_CN'],
       differentialPackage: true,
-    },
-    portable: {
-      artifactName: `deepseek-harness-\${version}-\${os}-\${arch}-portable${unsigned ? '-unsigned' : ''}.\${ext}`,
-      requestExecutionLevel: 'user',
     },
     detectUpdateChannel: false,
     publish: update === undefined ? null : [{ provider: 'generic', url: update.publicUrl, channel: 'nightly' }],
