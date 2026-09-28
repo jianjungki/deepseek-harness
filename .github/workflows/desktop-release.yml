@@ -7,6 +7,14 @@ on:
         description: Existing desktop-unsigned-v<version> tag to build and publish
         required: true
         type: string
+      policy_mode:
+        description: Mandatory update policy mode for this build
+        required: false
+        default: enabled
+        type: choice
+        options:
+          - enabled
+          - disabled
   push:
     tags: ['desktop-unsigned-v*']
 
@@ -85,6 +93,7 @@ jobs:
       TARGET_PLATFORM: ${{ matrix.platform }}
       TARGET_ARCH: ${{ matrix.arch }}
       BUILD_VERSION: ${{ needs.plan.outputs.version }}
+      POLICY_MODE: ${{ inputs.policy_mode || 'enabled' }}
       POLICY_ORIGIN: ${{ vars.DSH_DESKTOP_POLICY_TEST_ORIGIN }}
       AUTH_ORIGIN: ${{ vars.DSH_DESKTOP_AUTH_TEST_ORIGIN }}
     steps:
@@ -101,16 +110,25 @@ jobs:
         run: |
           @'
           import { writeFileSync } from 'node:fs';
-          const { POLICY_ORIGIN, AUTH_ORIGIN, TARGET_PLATFORM, TARGET_ARCH } = process.env;
+          const { POLICY_MODE, POLICY_ORIGIN, AUTH_ORIGIN, TARGET_PLATFORM, TARGET_ARCH } = process.env;
           if (process.platform !== TARGET_PLATFORM || process.arch !== TARGET_ARCH) throw new Error('Runner architecture differs from target');
-          for (const value of [POLICY_ORIGIN, AUTH_ORIGIN]) {
-            const url = new URL(value);
-            if (url.protocol !== 'https:' || url.origin !== value) throw new Error('Configure HTTPS origins in DSH_DESKTOP_POLICY_TEST_ORIGIN and DSH_DESKTOP_AUTH_TEST_ORIGIN');
+          if (POLICY_MODE !== 'enabled' && POLICY_MODE !== 'disabled') throw new Error('POLICY_MODE must be enabled or disabled');
+          let policySettings = 'DSH_DESKTOP_POLICY_MODE=disabled\n';
+          if (POLICY_MODE === 'enabled') {
+            for (const [name, value] of [
+              ['DSH_DESKTOP_POLICY_TEST_ORIGIN', POLICY_ORIGIN],
+              ['DSH_DESKTOP_AUTH_TEST_ORIGIN', AUTH_ORIGIN],
+            ]) {
+              if (!value?.trim()) throw new Error(`Missing repository Actions variable ${name}`);
+              const url = new URL(value);
+              if (url.protocol !== 'https:' || url.origin !== value) throw new Error('Configure HTTPS origins in DSH_DESKTOP_POLICY_TEST_ORIGIN and DSH_DESKTOP_AUTH_TEST_ORIGIN');
+            }
+            const config = JSON.stringify({ allowedAuthOrigins: [AUTH_ORIGIN] });
+            if ([POLICY_ORIGIN, config].some(value => /['\r\n]/.test(value))) throw new Error('Unsupported dotenv characters');
+            policySettings = `DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN=${POLICY_ORIGIN}\nDSH_DESKTOP_MANDATORY_UPDATE_CONFIG='${config}'\n`;
           }
-          const config = JSON.stringify({ allowedAuthOrigins: [AUTH_ORIGIN] });
-          if ([POLICY_ORIGIN, config].some(value => /['\r\n]/.test(value))) throw new Error('Unsupported dotenv characters');
           const file = TARGET_PLATFORM === 'win32' ? '.env.windows' : '.env.macos';
-          writeFileSync(`apps/desktop/${file}`, `DSH_DESKTOP_APP_ID=com.deepseek.harness\nDSH_DESKTOP_AUTO_UPDATE_ENV=test\nDSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN=${POLICY_ORIGIN}\nDSH_DESKTOP_MANDATORY_UPDATE_CONFIG='${config}'\n`);
+          writeFileSync(`apps/desktop/${file}`, `DSH_DESKTOP_APP_ID=com.deepseek.harness\nDSH_DESKTOP_AUTO_UPDATE_ENV=test\n${policySettings}`);
           '@ | node --input-type=module
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: pnpm/action-setup@v4

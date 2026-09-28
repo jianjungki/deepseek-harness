@@ -162,7 +162,7 @@ Desktop 在 Host 启动后、打开工作区前检查模型 API Key 引用是否
 
 [未签名发布工作流](../../.github/workflows/desktop-release.yml)使用原生 runner 构建 Windows x64 EXE 和 macOS x64/ARM64 DMG、ZIP 安装包。Node 版本由 [`.nvmrc`](../../.nvmrc)指定；使用 nvm-windows 时，在仓库根目录执行 `nvm use (Get-Content .nvmrc).Trim()` 选择该版本。构建前安装清单锁定的 pnpm 和工作区依赖。Windows 需要 Visual Studio C++ 构建工具。
 
-在仓库 Actions Variables 中配置 `DSH_DESKTOP_POLICY_TEST_ORIGIN` 和 `DSH_DESKTOP_AUTH_TEST_ORIGIN`，分别填写真实策略服务与登录服务的 HTTPS origin。未签名构建仍需要可用的策略服务；占位域名不是部署配置。推送指向已有源码、名称为 `desktop-unsigned-v<版本>` 且版本与 Desktop 清单一致的标签，或在手动工作流输入中选择该已有标签。三个目标的构建及打包运行时 smoke 检查全部成功后，工作流才发布包含五个安装包和 SHA-256 校验和的 GitHub 预发布版本。已有 Release 会导致发布失败，而不是覆盖资产。此工作流尚未在 GitHub 执行；发布操作人员必须验证三个目标的安装与启动。
+在仓库 Actions Variables 中配置 `DSH_DESKTOP_POLICY_TEST_ORIGIN` 和 `DSH_DESKTOP_AUTH_TEST_ORIGIN`，分别填写真实策略服务与登录服务的 HTTPS origin。手动工作流输入 `policy_mode=disabled` 可以先生成不执行强更检查和登录的临时安装包；标签推送和手动工作流默认值仍启用策略并要求这两个变量。禁用策略的安装包无法执行强制更新，重新启用策略构建后才恢复。推送指向已有源码、名称为 `desktop-unsigned-v<版本>` 且版本与 Desktop 清单一致的标签，或在手动工作流输入中选择该已有标签。三个目标的构建及打包运行时 smoke 检查全部成功后，工作流才发布包含五个安装包和 SHA-256 校验和的 GitHub 预发布版本。已有 Release 会导致发布失败，而不是覆盖资产。此工作流尚未在 GitHub 执行；发布操作人员必须验证三个目标的安装与启动。
 
 本地打包时，按下文配置目标 dotenv 文件，并向该平台的打包命令传入 `--unsigned`。Windows 使用 `pnpm --dir apps/desktop run package:win:x64 --unsigned`；macOS 使用 `package:mac:x64` 或 `package:mac:arm64`。运行前按“发布版本”一节确认版本。产物位于目标目录的 `unsigned-artifacts` 下，文件名带有 `-unsigned` 后缀。未签名模式不执行发布者签名和 Apple 公证，不生成自动更新 feed 或 COS 发布记录；仍要求运行时完整性与 smoke 检查。Gatekeeper、SmartScreen 或企业策略可能阻止这些安装包。Windows 构建主机无法验证原生 macOS 打包与安装。
 
@@ -400,7 +400,7 @@ Windows 下载完成后的更新确认说明应用会在安装期间关闭、完
 
 ### 强制更新策略
 
-[强更客户端决策](../../.agents/notes/implemented/feature/2026-09-11-desktop-mandatory-update-client.zh.md)负责策略查询和阻塞窗口。打包读取 `.env.windows` 或 `.env.macos`：`DSH_DESKTOP_AUTO_UPDATE_ENV=test`（默认值）选择 `DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN`；`production` 选择 `DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN`。模板将两个源站留空；在 Git 忽略的目标 dotenv 文件中填写所选部署的源站。在准备产物或签名前，所选源站必须配置，包括未签名和仅准备构建；未选环境的源站可不填。这些配置不会回退到父进程环境或另一部署环境。打包将选定策略与应用 ID 写入元数据；打包应用忽略运行时覆盖。
+[强更客户端决策](../../.agents/notes/implemented/feature/2026-09-11-desktop-mandatory-update-client.zh.md)负责策略查询和阻塞窗口。打包读取 `.env.windows` 或 `.env.macos`：`DSH_DESKTOP_POLICY_MODE=enabled`（默认值）保持策略检查；`disabled` 不把策略写入安装包，也不会打开登录流程。启用策略时，`DSH_DESKTOP_AUTO_UPDATE_ENV=test`（默认值）选择 `DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN`；`production` 选择 `DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN`。模板将两个源站留空；在 Git 忽略的目标 dotenv 文件中填写所选部署的源站。启用策略时，在准备产物或签名前必须配置所选源站；未选环境的源站可不填。这些配置不会回退到父进程环境或另一部署环境。打包将选定策略与应用 ID 写入元数据；打包应用忽略运行时覆盖。
 
 `DSH_DESKTOP_MANDATORY_UPDATE_CONFIG` JSON 提供测试登录源站，以及可选的轮询和下载页面选项；打包拒绝其中的 `origin` 和 `authentication`。页面白名单默认只包含所选服务源站；需要其他已批准下载页面源站时应显式配置。测试包选择 `feishu-test`，且必须在 `DSH_DESKTOP_MANDATORY_UPDATE_CONFIG` 中配置 `allowedAuthOrigins`；正式包选择 `anonymous`，并拒绝该字段。每个登录源站必须是没有凭据、路径、查询或片段的 HTTPS origin。登录窗口仅允许文档导航到所选策略源站和这些已配置源站。策略请求拒绝重定向；仅测试鉴权携带网关 Cookie。未打包开发模式则从此变量读取完整策略 JSON，并要求 `DSH_DESKTOP_APP_ID`；缺少 JSON 会禁用开发模式策略查询，仅匿名开发允许 HTTP `127.0.0.1`。用户发起常规检查时会并发触发策略检查，但不会等待或展示策略失败。只有已确认的强更决定可以关闭常规弹窗。测试环境鉴权会等待当前常规弹窗结束，取消或失败不会丢弃 updater 结果。
 

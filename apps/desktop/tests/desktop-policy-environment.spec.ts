@@ -25,6 +25,16 @@ it('requires only the selected origin, defaults to test, and accepts explicit pa
   expect(() => resolveDesktopPolicyEnvironment({ ...origins, DSH_DESKTOP_AUTO_UPDATE_ENV: 'prod' })).toThrow('production')
 })
 
+it('disables policy configuration without requiring service or login origins', () => {
+  expect(resolveDesktopPolicyEnvironment({ DSH_DESKTOP_POLICY_MODE: 'disabled' })).toBeUndefined()
+  expect(() => validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'com.example.test', DSH_DESKTOP_POLICY_MODE: 'disabled' },
+    { platform: 'win32', arch: 'x64' }, { unsigned: true })).not.toThrow()
+})
+
+it.each(['', 'on', 'DISABLED'])('rejects an unknown policy mode %j', (mode) => {
+  expect(() => resolveDesktopPolicyEnvironment({ DSH_DESKTOP_POLICY_MODE: mode })).toThrow('DSH_DESKTOP_POLICY_MODE')
+})
+
 it.each([undefined, '', 'http://test.example.com', 'https://user:secret@test.example.com',
   'https://test.example.com/api', 'https://test.example.com/?secret=value'])('rejects invalid selected origin %s', (origin) => {
   expect(() => resolveDesktopPolicyEnvironment({ ...auth, DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: origin })).toThrow('HTTPS origin')

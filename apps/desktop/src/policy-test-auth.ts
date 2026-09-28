@@ -112,7 +112,7 @@ export class DesktopPolicyTestAuth {
     contents.on('render-process-gone', () => { finish('failed') })
     contents.on('did-navigate', (_event, value) => {
       const url = new URL(value)
-      if (url.origin === this.origin && (url.pathname === '/' || url.pathname === '/feishu_auth_callback')) finish('returned')
+      if (url.origin === this.origin && (url.pathname === '/' || url.pathname === '/oauth/callback')) finish('returned')
     })
     this.record('opened')
     const loadLogin = (): void => {

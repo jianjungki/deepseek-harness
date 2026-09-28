@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write deploy/desktop-policy/README.md
+/desktop-policy-service:
+  en: a8d0e97d95941ae0
+  zh: d6f91c75e78c6867
+/desktop-policy-service/flow:
+  en: 230090c602093ca5
+  zh: efb7ae4d261cdefc
+/desktop-policy-service/zitadel-setup:
+  en: 6b28e9b738740a59
+  zh: 4e17e8c9e28875eb
+/desktop-policy-service/configuration:
+  en: 56af99d31253fe5e
+  zh: 63828268018081c1
+/desktop-policy-service/run:
+  en: 2deeb57611e0a82e
+  zh: 2cb906202655e776
+/desktop-policy-service/github-actions-variables:
+  en: ac81fe0f0c70a52a
+  zh: 12d4318926a49458
