@@ -53,10 +53,11 @@ jobs:
           node --input-type=module <<'JS'
           import { appendFileSync, readFileSync } from 'node:fs';
           import { execFileSync } from 'node:child_process';
-          import { validateDesktopUnsignedReleaseTag } from './scripts/desktop-unsigned-release-selection.mjs';
+          import { validateDesktopUnsignedPackagingSource, validateDesktopUnsignedReleaseTag } from './scripts/desktop-unsigned-release-selection.mjs';
           const tag = process.env.RELEASE_TAG;
           const product = JSON.parse(readFileSync('apps/desktop/package.json', 'utf8')).version;
           const version = validateDesktopUnsignedReleaseTag(tag, product);
+          validateDesktopUnsignedPackagingSource(readFileSync('apps/desktop/scripts/electron-builder-config.mjs', 'utf8'));
           const commit = execFileSync('git', ['rev-parse', `refs/tags/${tag}^{commit}`], { encoding: 'utf8' }).trim();
           const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
           if (head !== commit) throw new Error('Checkout does not match release tag');
@@ -166,6 +167,8 @@ jobs:
       - name: Verify complete artifact set
         run: |
           set -euo pipefail
+          printf 'Downloaded Desktop artifacts:\n'
+          find dist -maxdepth 1 -type f -printf '%f\n' | sort
           test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-unsigned.exe"
           test -s "dist/deepseek-harness-$BUILD_VERSION-win-x64-unsigned.zip"
           for arch in x64 arm64; do

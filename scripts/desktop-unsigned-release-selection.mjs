@@ -18,3 +18,14 @@ export function validateDesktopUnsignedReleaseTag(tag, product) {
   }
   return version
 }
+
+/**
+ * Validate that a selected Desktop source tree produces the published Windows formats.
+ * @param {string} builderSource - Contents of the selected tree's electron-builder configuration.
+ * @returns {void}
+ */
+export function validateDesktopUnsignedPackagingSource(builderSource) {
+  if (!/target\s*:\s*\[\s*['"]nsis['"]\s*,\s*['"]zip['"]\s*\]/u.test(builderSource)) {
+    throw new Error('Selected Desktop source does not include the Windows ZIP target; create a new tag from the current packaging commit')
+  }
+}

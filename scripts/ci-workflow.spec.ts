@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
-import { validateDesktopUnsignedReleaseTag } from './desktop-unsigned-release-selection.mjs'
+import { validateDesktopUnsignedPackagingSource, validateDesktopUnsignedReleaseTag } from './desktop-unsigned-release-selection.mjs'
 
 function evaluateRunsOn(selector: unknown, context: Record<string, unknown>): unknown {
   if (typeof selector !== 'string') throw new TypeError('Runner selector must be a string')
@@ -31,6 +31,11 @@ describe('CI workflow', () => {
     ['desktop-unsigned-v0.1.7.20260928.1', '0.1.7'],
   ])('rejects Desktop release tag %s for product %s', (tag, product) => {
     expect(() => validateDesktopUnsignedReleaseTag(tag, product)).toThrow()
+  })
+
+  it('rejects a Desktop release source that still builds the removed Windows portable executable', () => {
+    expect(() => validateDesktopUnsignedPackagingSource("target: ['nsis', 'portable']")).toThrow('Windows ZIP target')
+    expect(() => validateDesktopUnsignedPackagingSource("target: ['nsis', 'zip']")).not.toThrow()
   })
 
   it('requires both Windows installer and ZIP formats before publishing a Desktop release', () => {
