@@ -26,10 +26,12 @@ it('requires only the selected origin, defaults to test, and accepts explicit pa
   expect(() => resolveDesktopPolicyEnvironment({ ...origins, DSH_DESKTOP_AUTO_UPDATE_ENV: 'prod' })).toThrow('production')
 })
 
-it('disables policy configuration without requiring service or login origins', () => {
+it.each(['win32', 'darwin'] as const)('disables policy configuration without requiring service or login origins on %s', (platform) => {
   expect(resolveDesktopPolicyEnvironment({ DSH_DESKTOP_POLICY_MODE: 'disabled' })).toBeUndefined()
-  expect(() => validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'com.example.test', DSH_DESKTOP_POLICY_MODE: 'disabled' },
-    { platform: 'win32', arch: 'x64' }, { unsigned: true })).not.toThrow()
+  expect(() => {
+    validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'com.example.test', DSH_DESKTOP_POLICY_MODE: 'disabled' },
+      { platform, arch: 'x64' }, { unsigned: true })
+  }).not.toThrow()
 })
 
 it.each(['', 'on', 'DISABLED'])('rejects an unknown policy mode %j', (mode) => {
@@ -58,7 +60,7 @@ it('rejects login origins in production', () => {
     .toThrow('must not configure allowedAuthOrigins')
 })
 
-it.each([{ unsigned: true }, { prepareOnly: true }, {}])('fails before signing/preparation when policy is absent in %j', (options) => {
+it.each([{ unsigned: true }, { prepareOnly: true }, {}])('requires enabled policy in packaging mode %j', (options) => {
   for (const platform of ['win32', 'darwin'] as const) {
     expect(() => { validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'com.example.test' }, { platform, arch: 'x64' }, options) })
       .toThrow('DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN')

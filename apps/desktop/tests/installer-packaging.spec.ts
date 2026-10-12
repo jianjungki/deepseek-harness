@@ -12,10 +12,13 @@ vi.mock('node:child_process', async (importOriginal) => {
 })
 
 describe('installer preparation preserves application dependencies', () => {
-  it.each(['win32', 'darwin'] as const)('rejects a missing production policy before signing on %s', async (platform) => {
+  it.each([
+    ['win32', '0'], ['win32', '1'], ['darwin', '0'], ['darwin', '1'],
+  ] as const)('rejects a missing production policy before signing on %s with unsigned=%s', async (platform, unsigned) => {
     const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
     expect(() => createElectronBuilderConfig({ DSH_DESKTOP_APP_ID: 'com.example.installer',
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+      DSH_DESKTOP_UNSIGNED: unsigned,
       DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://test.example.com',
     }, platform, 'x64')).toThrow('DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN')
   })
