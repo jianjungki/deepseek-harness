@@ -1,0 +1,61 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/desktop/packaging/README.md
+/:
+  en: 9bc7767fc1bced33
+  zh: 4f6198337a573cf4
+/desktop-packaging:
+  en: b35e10c88ade04fe
+  zh: a2d09add03407b91
+/desktop-packaging/summary:
+  en: e98e516b9e1bd0f4
+  zh: 1a2abd7d89ef78a1
+/desktop-packaging/table-of-contents:
+  en: 48d43f43dc916ebc
+  zh: 533bc524af7d0310
+/desktop-packaging/choose-a-build-path:
+  en: 4b04bbf59d0775ca
+  zh: 10a905d63b1e1796
+/desktop-packaging/unsigned-github-builds:
+  en: b08d9275dabe16f5
+  zh: 88e4906699f0546d
+/desktop-packaging/release-versions:
+  en: 3f38ab26ee195b39
+  zh: f00eddafa8f3b9ca
+/desktop-packaging/configuration-and-local-builds:
+  en: 163e9edcd0ea9d9f
+  zh: 757343bcc075a5e3
+/desktop-packaging/windows-actions-packaging:
+  en: 253e17998951931c
+  zh: b582b377391d2ec2
+/desktop-packaging/macos-self-hosted-packaging:
+  en: ac9c3a1da5f4e837
+  zh: f405d36e3dd1acc1
+/desktop-packaging/unsigned-windows-test-installer:
+  en: d3672f41d244df5a
+  zh: 351bafdb10da95dd
+/desktop-packaging/local-macos-dmg-without-release-signing:
+  en: 2fd0bf5f46063c05
+  zh: 40fa60b04d6e2cbe
+/desktop-packaging/macos-release-signing-and-diagnostics:
+  en: 29fa6bd8919f3ec0
+  zh: 9e31e037fa3d9378
+/desktop-packaging/directory-builds-and-preparation:
+  en: 5860c306375ddd63
+  zh: a76e3cdbbe25c79e
+/desktop-packaging/local-official-bundles-from-a-loopback-registry:
+  en: b42f103358d0dfd7
+  zh: a534164ad9eb00da
+/desktop-packaging/runtime-file-selection-and-installation-checks:
+  en: 83e1075417039410
+  zh: 3088a7ae0a2cc3c5
+/desktop-packaging/desktop-runtime-preparation:
+  en: ab73b67d899e611d
+  zh: d77b0525c6b81e91
+/desktop-packaging/installation-and-release-verification:
+  en: eb35eb973b796643
+  zh: c1c52311632b7296
+/desktop-packaging/dev-note:
+  en: 691194744993dfaa
+  zh: e5798faf99546ff8

@@ -51,7 +51,7 @@ it('shares an isolated memory Session with policy fetches, without opening a log
   expect(browserSession.fetch).toHaveBeenCalledTimes(1)
 })
 
-it('opens a sandboxed window on explicit action and coalesces logins without authorizing an update', async () => {
+it.each(['/', '/oauth/callback'])('coalesces logins in a sandboxed window and accepts the policy return path %s', async (pathname) => {
   const pending = auth.login()
   expect(auth.login()).toBe(pending)
   expect(native.create).toHaveBeenCalledTimes(1)
@@ -66,7 +66,7 @@ it('opens a sandboxed window on explicit action and coalesces logins without aut
   expect(window.loadFile).toHaveBeenCalledTimes(1)
   window.webContents.emit('did-navigate', {}, 'https://login.example.com/open-apis/authen/v1/index?state=secret')
   expect(window.isDestroyed()).toBe(false)
-  window.webContents.emit('did-navigate', {}, 'https://policy.example.com/')
+  window.webContents.emit('did-navigate', {}, `https://policy.example.com${pathname}`)
   expect(await pending).toBe('returned')
   expect(record.mock.calls).toEqual([['opened'], ['returned']])
   expect(browserSession.fetch).not.toHaveBeenCalled()
