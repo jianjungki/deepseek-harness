@@ -1,11 +1,11 @@
 /** Select local test defaults or platform release settings without changing the caller's environment. */
 
-import { accessSync, constants, readFileSync, statSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { accessSync, constants, statSync } from 'node:fs'
+import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseEnv } from 'node:util'
+import { readDesktopPackageSettings as readSettings } from './desktop-file-settings.mjs'
 import { resolveDesktopAppId, resolveMacOSNotarizationEnvironment, resolveMacOSSigningEnvironment, resolveNpmRegistry } from './desktop-release-environment.mjs'
-import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
+import { resolveDesktopAutoUpdateConfig } from '@deepseek-ai/dsh-desktop-publisher/desktop-auto-update-environment.mjs'
 import { createWindowsTokenSigner } from './windows-sign.mjs'
 import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
 import { validateMacOSSignatureCacheDirectory } from './macos-signature-cache-directory.mjs'
@@ -15,11 +15,10 @@ import { resolveWindowsPackageSettings } from './windows-package-settings.mjs'
 import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 
 const APP_ROOT = fileURLToPath(new URL('..', import.meta.url))
-const SHARED_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|NPM_REGISTRY|POLICY_MODE|MANDATORY_UPDATE_(?:CONFIG|(?:TEST|PROD)_ORIGIN))|DOWNLOAD_TEST_RELEASE_ID|DOWNLOAD_PROD_EO_ZONE_ID|DOWNLOAD_(?:TEST|PROD)_(?:ORIGIN|COS_BUCKET|COS_SECRET_ID|COS_SECRET_KEY))$/u
+const SHARED_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|NPM_REGISTRY|MANDATORY_UPDATE_(?:CONFIG|(?:TEST|PROD)_ORIGIN))|DOWNLOAD_TEST_RELEASE_ID|DOWNLOAD_PROD_EO_ZONE_ID|DOWNLOAD_(?:TEST|PROD)_(?:ORIGIN|COS_BUCKET|COS_SECRET_ID|COS_SECRET_KEY))$/u
 const WINDOWS_SETTING = /^DSH_DESKTOP_WINDOWS_(?:CER_FILE|SIGNTOOL|KEY_CONTAINER|TOKEN_PIN|SIGNATURE_CACHE_DIR|SIGNATURE_CACHE_CONCURRENCY|PACK_CONCURRENCY|COMPRESSION_LEVEL)$/u
 const MACOS_SETTING = /^(?:DSH_DESKTOP_MACOS_(?:SIGNING_IDENTITY|TEAM_ID|SIGNATURE_CACHE_DIR|PACK_CONCURRENCY|ZIP_COMPRESSION_LEVEL|DOWNLOAD_PROXY|NOTARIZATION_PROXY)|APPLE_(?:API_KEY|API_KEY_ID|API_ISSUER|ID|APP_SPECIFIC_PASSWORD|TEAM_ID|KEYCHAIN|KEYCHAIN_PROFILE)|CSC_(?:LINK|KEY_PASSWORD))$/u
-const AMBIENT_RELEASE_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|POLICY_MODE|MANDATORY_UPDATE_.*|WINDOWS_.*|MACOS_.*)|APPLE_.*|(?:WIN_)?CSC_.*|DOWNLOAD_(?:TEST|PROD)_.*)$/iu
-const FILE_SETTINGS = ['DSH_DESKTOP_WINDOWS_CER_FILE', 'DSH_DESKTOP_WINDOWS_SIGNTOOL', 'APPLE_API_KEY', 'APPLE_KEYCHAIN', 'CSC_LINK']
+const AMBIENT_RELEASE_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|MANDATORY_UPDATE_.*|WINDOWS_.*|MACOS_.*)|APPLE_.*|(?:WIN_)?CSC_.*|DOWNLOAD_(?:TEST|PROD)_.*)$/iu
 
 /**
  * Select local macOS test defaults without reading dotenv files or inheriting release settings.
@@ -30,7 +29,6 @@ export function localMacOSPackageEnvironment(environment = process.env) {
   return {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
     DSH_DESKTOP_APP_ID: 'com.deepseek.harness',
-    DSH_DESKTOP_POLICY_MODE: 'disabled',
     DSH_DESKTOP_UNSIGNED: '1',
   }
 }
@@ -73,7 +71,7 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
     : /^DSH_DESKTOP_MACOS_(?:SIGNATURE_CACHE_DIR|PACK_CONCURRENCY|ZIP_COMPRESSION_LEVEL|DOWNLOAD_PROXY|NOTARIZATION_PROXY)$/u
   const settings = readSettings(path, name => preset === undefined
     ? SHARED_SETTING.test(name) || platformSetting.test(name)
-    : /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|NPM_REGISTRY|POLICY_MODE|MANDATORY_UPDATE_(?:CONFIG|(?:TEST|PROD)_ORIGIN))|DOWNLOAD_TEST_(?:ORIGIN|RELEASE_ID))$/u.test(name) || publicPlatformSetting.test(name))
+    : /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|NPM_REGISTRY|MANDATORY_UPDATE_(?:CONFIG|(?:TEST|PROD)_ORIGIN))|DOWNLOAD_TEST_(?:ORIGIN|RELEASE_ID))$/u.test(name) || publicPlatformSetting.test(name))
   if (preset !== undefined) {
     if (settings.DSH_DESKTOP_AUTO_UPDATE_ENV !== preset) throw new Error('desktop package: preset deployment must match its name')
     if (!options.unsigned && (platform === 'darwin' || !options.prepareOnly)) {
@@ -102,40 +100,6 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
   }
 }
 
-/**
- * Read an explicitly selected dotenv without exposing credential-bearing parser errors.
- * @param {string} path Selected file; relative file settings resolve beside it.
- * @param {(name: string) => boolean} accepts Whether this file may declare a setting.
- * @returns {NodeJS.ProcessEnv} Validated file settings.
- */
-function readSettings(path, accepts) {
-  let contents
-  try {
-    contents = readFileSync(path, 'utf8')
-  }
-  catch {
-    throw new Error(`desktop package: cannot read ${path}; copy ${path}.example and fill in the local settings`)
-  }
-  let settings
-  try {
-    settings = parseEnv(contents.replace(/^\uFEFF/u, ''))
-  }
-  catch {
-    // Parser diagnostics can contain credential-bearing input.
-    throw new Error(`desktop package: invalid dotenv syntax in ${path}`)
-  }
-  for (const name of Object.keys(settings)) {
-    if (!accepts(name)) {
-      throw new Error(`desktop package: unsupported setting ${name} in ${path}; use the platform template`)
-    }
-    if (settings[name].includes('\0')) throw new Error(`desktop package: ${name} cannot contain a NUL character`)
-  }
-  for (const name of FILE_SETTINGS) {
-    if (settings[name]?.trim()) settings[name] = resolve(dirname(path), settings[name].trim())
-  }
-  return settings
-}
-
 function requireReadableFile(environment, name) {
   try {
     if (!statSync(environment[name]).isFile()) throw new Error('not a file')
@@ -157,7 +121,7 @@ export function validateDesktopPackageEnvironment(environment, target, options =
   resolveDesktopTargetBuildPaths(environment, target.platform, target.arch)
   resolveDesktopAppId(environment)
   resolveNpmRegistry(environment)
-  resolveDesktopPolicyEnvironment(environment)
+  if (target.platform !== 'darwin' || !options.unsigned) resolveDesktopPolicyEnvironment(environment)
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
   if (options.unsigned) return
