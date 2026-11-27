@@ -15,14 +15,11 @@ on:
         options:
           - enabled
           - disabled
-  push:
-    tags: ['desktop-unsigned-v*']
-
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-unsigned-${{ inputs.tag || github.ref_name }}
+  group: desktop-unsigned-${{ inputs.tag }}
   cancel-in-progress: false
 
 env:
@@ -38,17 +35,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version-file: .nvmrc
+          node-version: '^24.22.3'
           package-manager-cache: false
       - name: Validate immutable release selection
         id: plan
         env:
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           node --input-type=module <<'JS'
           import { appendFileSync, readFileSync } from 'node:fs';
@@ -93,7 +90,7 @@ jobs:
       TARGET_PLATFORM: ${{ matrix.platform }}
       TARGET_ARCH: ${{ matrix.arch }}
       BUILD_VERSION: ${{ needs.plan.outputs.version }}
-      POLICY_MODE: ${{ inputs.policy_mode || 'enabled' }}
+      POLICY_MODE: ${{ inputs.policy_mode }}
       POLICY_ORIGIN: ${{ vars.DSH_DESKTOP_POLICY_TEST_ORIGIN }}
       AUTH_ORIGIN: ${{ vars.DSH_DESKTOP_AUTH_TEST_ORIGIN }}
     steps:
@@ -104,7 +101,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version-file: .nvmrc
+          node-version: '^24.22.3'
           package-manager-cache: false
       - name: Configure unsigned build
         run: |
@@ -131,7 +128,7 @@ jobs:
           writeFileSync(`apps/desktop/${file}`, `DSH_DESKTOP_APP_ID=com.deepseek.harness\nDSH_DESKTOP_AUTO_UPDATE_ENV=test\n${policySettings}`);
           '@ | node --input-type=module
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5.0.0
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check packaging configuration and toolchain
